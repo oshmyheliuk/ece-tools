@@ -29,6 +29,11 @@ class ProductionCompose implements ComposeInterface
 
     const DIR_MAGENTO = '/app';
 
+    const DEFAULT_PHP_EXTENSION_LIST = [
+        'bcmath',
+        'intl',
+    ];
+
     /**
      * @var ServiceFactory
      */
@@ -172,13 +177,27 @@ class ProductionCompose implements ComposeInterface
             self::DEFAULT_TLS_VERSION,
             ['depends_on' => ['varnish']]
         );
+
+        $phpExtensions = array_diff(
+            array_merge(self::DEFAULT_PHP_EXTENSION_LIST, $this->config->getEnabledPhpExtensions()),
+            $this->config->getDisabledPhpExtensions()
+        );
         $services['cron'] = $this->getCronCliService($phpVersion, true, $cliDepends, 'cron.magento2.docker');
         $services['generic'] = [
             'image' => 'alpine',
-            'environment' => $this->converter->convert($this->getVariables()),
+            'environment' => $this->converter->convert(array_merge(
+                $this->getVariables(),
+                ['PHP_EXTENSIONS' => implode(' ', $phpExtensions)]
+            )),
             'env_file' => [
                 './.docker/config.env',
             ],
+            'volumes'=> [
+                './docker/php_extensions.sh:/usr/local/bin/php_extensions'
+            ],
+            'command' => [
+                'php_extensions',
+            ]
         ];
 
         $volumeConfig = [];
