@@ -32,6 +32,9 @@ class ProductionCompose implements ComposeInterface
     const DEFAULT_PHP_EXTENSION_LIST = [
         'bcmath',
         'intl',
+        'opcache',
+        'mysql',
+        'curl',
     ];
 
     /**
@@ -192,12 +195,6 @@ class ProductionCompose implements ComposeInterface
             'env_file' => [
                 './.docker/config.env',
             ],
-            'volumes'=> [
-                './docker/php_extensions.sh:/usr/local/bin/php_extensions'
-            ],
-            'command' => [
-                'php_extensions',
-            ]
         ];
 
         $volumeConfig = [];
