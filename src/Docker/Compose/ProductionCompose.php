@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Magento\MagentoCloud\Docker\Compose;
 
+use Composer\Semver\Constraint\Constraint;
+use Composer\Semver\VersionParser;
 use Illuminate\Contracts\Config\Repository;
 use Magento\MagentoCloud\Docker\Service\Config;
 use Magento\MagentoCloud\Docker\ComposeInterface;
@@ -29,12 +31,67 @@ class ProductionCompose implements ComposeInterface
 
     const DIR_MAGENTO = '/app';
 
-    const DEFAULT_PHP_EXTENSION_LIST = [
+    const DEFAULT_PHP_EXTENSIONS = [
         'bcmath',
+        'bz2',
+        'calendar',
+        'exif',
+        'gd',
+        'gettext',
         'intl',
+        'mysqli',
+        'pcntl',
+        'pdo_mysql',
+        'soap',
+        'sockets',
+        'sysvmsg',
+        'sysvsem',
+        'sysvshm',
         'opcache',
-        'mysql',
-        'curl',
+        'zip',
+    ];
+
+    const AVAILABLE_PHP_EXTENSIONS = [
+        'bcmath' => '7.*',
+        'bz2' => '7.*',
+        'calendar' => '7.*',
+        'exif' => '7.*',
+        'gd' => '7.*',
+        'geoip' => '7.*',
+        'gettext' => '7.*',
+        'gmp' => '7.*',
+        'igbinary' => '7.*',
+        'imagick' => '7.*',
+        'imap' => '7.*',
+        'intl' => '7.*',
+        'ldap' => '7.*',
+        'mailparse' => '7.*',
+        'mcrypt' => '7.0.* | 7.1.*',
+        'msgpack' => '7.*',
+        'mysqli' => '7.*',
+        'oauth' => '7.*',
+        'opcache' => '7.*',
+        'pdo_mysql' => '7.*',
+        'propro' => '7.*',
+        'pspell' => '7.*',
+        'raphf' => '7.*',
+        'recode' => '7.*',
+        'redis' => '7.*',
+        'shmop' => '7.*',
+        'soap' => '7.*',
+        'sockets' => '7.*',
+        'sodium' => '7.*',
+        'ssh2' => '7.*',
+        'sysvmsg' => '7.*',
+        'sysvsem' => '7.*',
+        'sysvshm' => '7.*',
+        'tidy' => '7.*',
+        'xdebug' => '7.*',
+        'xmlrpc' => '7.*',
+        'xsl' => '7.*',
+        'yaml' => '7.*',
+        'zip' => '7.*',
+        'pcntl' => '7.*',
     ];
 
     /**
@@ -58,21 +115,29 @@ class ProductionCompose implements ComposeInterface
     private $converter;
 
     /**
+     * @var VersionParser
+     */
+    private $versionParser;
+
+    /**
      * @param ServiceFactory $serviceFactory
      * @param FileList $fileList
      * @param Config $config
      * @param Converter $converter
+     * @param VersionParser $versionParser
      */
     public function __construct(
         ServiceFactory $serviceFactory,
         FileList $fileList,
         Config $config,
-        Converter $converter
+        Converter $converter,
+        VersionParser $versionParser
     ) {
         $this->serviceFactory = $serviceFactory;
         $this->fileList = $fileList;
         $this->config = $config;
         $this->converter = $converter;
+        $this->versionParser = $versionParser;
     }
 
     /**
@@ -182,9 +247,21 @@ class ProductionCompose implements ComposeInterface
         );
 
         $phpExtensions = array_diff(
-            array_merge(self::DEFAULT_PHP_EXTENSION_LIST, $this->config->getEnabledPhpExtensions()),
+            array_merge(self::DEFAULT_PHP_EXTENSIONS, $this->config->getEnabledPhpExtensions()),
             $this->config->getDisabledPhpExtensions()
         );
+
+        foreach ($phpExtensions as $phpExtName => $phpExtVersion) {
+            if (!in_array($phpExtName, self::AVAILABLE_PHP_EXTENSIONS)) {
+                $message = "PHP extension $phpExtName not supported. Fix it in your .magento.app.yaml";
+                throw new ConfigurationMismatchException($message);
+            }
+            $phpVersionConstraint = new Constraint('==', $this->versionParser->normalize($phpVersion));
+            if ($phpVersionConstraint->matches($this->versionParser->parseConstraints($phpExtVersion))) {
+                $message = "Extension $phpExtName not available for PHP version $phpExtVersion";
+                throw new ConfigurationMismatchException($message);
+            }
+        }
         $services['cron'] = $this->getCronCliService($phpVersion, true, $cliDepends, 'cron.magento2.docker');
         $services['generic'] = [
             'image' => 'alpine',
